@@ -55,7 +55,7 @@ public abstract class TypeOperateObject {
         config.setMaxIdle(5);
         config.setMaxWaitMillis(1000L);
         config.setTestOnBorrow(false);
-        // slave链接
+
         List<JedisShardInfo> shards = new ArrayList<JedisShardInfo>();
         shards.add(new JedisShardInfo(localAddr, localPort, "master"));
 
