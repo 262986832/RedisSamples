@@ -14,7 +14,15 @@ import org.springframework.test.context.junit4.SpringRunner;
 import redis.clients.jedis.Jedis;
 
 /**
- * 防止刷票
+ * 防止刷票。
+ * 注意问题1: redis与事务, 从代码可以看出会修改redis缓存。
+ *  假设规则是: 1min内投票不超过10;
+ *  现在的投票记录是: 0~50s投了9次。
+ *  某人A在51s对其投票, redis记录的结果是 0~51s内投了10次; 不存在刷票
+ *  但更新数据库时因为某个原因回滚了,前台提示投票失败。
+ *  此时某人A又在55s对其投票,但redis记录的结果是0~51s内投了10次, 55s这次检测出刷票.
+ *  但从上面可以看出51s那次不应该在redis中记录,
+ *  所以问题是 事务回滚后, redis被修改的缓存要怎么回滚？
  *
  * @author VergiLyn
  * @bolg http://www.cnblogs.com/VergiLyn/

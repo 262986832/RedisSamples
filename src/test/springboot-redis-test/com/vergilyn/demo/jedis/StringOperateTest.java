@@ -26,9 +26,11 @@ public class StringOperateTest {
         System.out.println("before test >>>> clear: "+jedis.flushDB());
     }
 
-
+    /**
+     * jedis单一操作测试：增删改查。
+     */
     @Test
-    public void singleBaseTest(){
+    public void jedisSingleTest(){
 
         System.out.println("test database >>>> key='key001', value='value001'");
 
@@ -36,7 +38,7 @@ public class StringOperateTest {
         System.out.println("get >>>> : " +  jedis.get("key001"));
 
         jedis.set("key001","value001-update");  //1、直接覆盖原来的数据
-        System.out.println("update >>>> : " + jedis.get("key001"));  //1、直接覆盖原来的数据
+        System.out.println("update >>>> : " + jedis.get("key001"));
 
         jedis.append("key001",",append");  //2、原值的基础上append
         System.out.println("append >>>> : " + jedis.get("key001"));
@@ -47,8 +49,11 @@ public class StringOperateTest {
         System.out.println("del get >>>> : " + jedis.get("key001"));
     }
 
+    /**
+     * jedis批量操作测试：增删改查。
+     */
     @Test
-    public void multiTest(){
+    public void jedisMultiTest(){
         /**
          * 不存在的key并不会抛异常。如下：key004
          */
