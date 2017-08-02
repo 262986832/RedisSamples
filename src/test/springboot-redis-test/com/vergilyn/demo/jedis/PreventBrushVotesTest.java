@@ -1,10 +1,6 @@
 package com.vergilyn.demo.jedis;
 
 import com.vergilyn.demo.redis.RedisApplication;
-
-import java.util.Iterator;
-import java.util.List;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -12,6 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 import redis.clients.jedis.Jedis;
+
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 
 /**
  * 防止刷票。
@@ -72,17 +72,11 @@ public class PreventBrushVotesTest {
      * @return true: 存在刷票嫌疑;
      */
     private boolean isBrushVotes(VoteEnum voteEnum, int date, VoteRules rules) {
-        // 取得投票项的投票记录
+        boolean isBrushVotes;
+        // 取得投票项的投票记录; lrange不会返回null
         List<String> records = jedis.lrange(voteEnum.key, 0, -1);
 
-        // 1. 未超过限制, 不存在刷票。
-        if (records.size() < rules.maxVotes) {
-            jedis.rpush(voteEnum.key, date+""); // 记录本次投票
-            return false;
-        }
-        // else : records.size() >= rules.maxVotes
-
-        // 2. 得到在 间隔时间内的 投票记录;
+        // 1. 筛选 间隔时间内的 投票记录;
         int beginDate = date - rules.interval;
         for (String record : records){
             if(Integer.parseInt(record) <= beginDate){   // 间隔时间之前的记录移除
@@ -96,21 +90,45 @@ public class PreventBrushVotesTest {
         records = jedis.lrange(voteEnum.key, 0, -1);
 
         if (records.size() < rules.maxVotes) {  // 间隔时间内未超过票数限制, 不存在刷票。
+            isBrushVotes = false;
             jedis.rpush(voteEnum.key, date+""); // 记录本次投票
-            return false;
+        }else{
+            isBrushVotes = true;
+            /* 间隔时间内超过票数限制
+             * 注意: 标准构想的是records.size() = interval;
+             * 原因:
+             *  假设1min内限制10票。  现在 0~50s就投了10票, 所以size = 10;
+             *  51s又投一票, 51s的这票开始被检测出此投票项有刷票嫌疑。所以, 这票作废。
+             *  (可视情况, 投票项被检测刷票后的投票, 需不需要记录到缓存中, 虽然这票没有投起。
+             *   但可以用于投票项解除限制后,用于作为刷票记录检测(蛋疼逻辑, 虽然几条记录又没真正投起, 也没有影响到得票数))
+             */
+    //        jedis.rpush(voteEnum.key, date+""); // 不记录本次投票; 因为这票并未投成功(检测出刷票,不能再投票)
         }
 
-        /* 间隔时间内超过票数限制
-         * 注意: 标准构想的是records.size() = interval;
-         * 原因:
-         *  假设1min内限制10票。  现在 0~50s就投了10票, 所以size = 10;
-         *  51s又投一票, 51s的这票开始被检测出此投票项有刷票嫌疑。所以, 这票作废。
-         *  (可视情况, 投票项被检测刷票后的投票, 需不需要记录到缓存中, 虽然这票没有投起。
-         *   但可以用于投票项解除限制后,用于作为刷票记录检测(蛋疼逻辑, 虽然几条记录又没真正投起, 也没有影响到得票数))
+        /*
+         * 每次得票都重新设置超时 原因: 可能投票到期日期存在修改
+         *   方法1: 在修改到期日期的方法中, 维护所有投票项的 redis失效时间。
+         *      (个人观点这种作法比较符合规范, 但要保证所有 修改到期日期 的方法都维护到)
+         *   方法2: 如下, 在写入redis的时候每次修改。
+         *      缺陷: 会多余很多无用的set, 因为到期日期并没有改变。
+         *
+         *   都存在的问题: 可能造成记录过早丢失.
+         *      假设: 到期日期是2017-08-01, 2天内获得100票视为刷票。 但2017-08-02修改到期日期为2017-08-10。
+         *      VOTE_01本来2017-08-01的记录是得到了99票, 在08-02又获得了2票, 其实符合刷票, 但redis记录没有了。
+         *
+         *   实际情况: 其实影响不大, 在能接收的范围内。(如果刷票检测超严格, 可能这写法都不符合)
          */
-//        jedis.rpush(voteEnum.key, date+""); // 不记录本次投票; 因为这票并未投成功(检测出刷票,不能再投票)
+        setRedisExpried(voteEnum.key);
 
-        return true;
+        return isBrushVotes;
+    }
+
+    /**
+     * 设置投票项 - 投票记录的超时时间。
+     * @param key
+     */
+    private void setRedisExpried(String key){
+        jedis.pexpireAt(key,VoteRules.VOTE_EXPIRE_TIME.getTime());
     }
 
     /**
@@ -147,6 +165,7 @@ public class PreventBrushVotesTest {
  * 投票项
  */
 enum VoteEnum {
+    // 投票到期时间
     VOTE_001("REDIS_VOTE_001"), VOTE_002("REDIS_VOTE_002");
 
     VoteEnum(String key) {
@@ -163,7 +182,14 @@ enum VoteEnum {
 class VoteRules {
     public final int maxVotes;
     public final int interval;
+    /** 投票到期日 */
+    public final static Date VOTE_EXPIRE_TIME;
 
+    static {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(2017, Calendar.DECEMBER,31);
+        VOTE_EXPIRE_TIME = calendar.getTime();
+    }
     /**
      * @param maxVotes 最大投票数
      * @param interval 间隔
