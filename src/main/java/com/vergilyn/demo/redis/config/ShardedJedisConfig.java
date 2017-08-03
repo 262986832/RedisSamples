@@ -18,6 +18,7 @@ import java.util.List;
  * @date 2017/4/4
  */
 @Configuration
+@EnableConfigurationProperties({JedisProperties.class})
 public class ShardedJedisConfig{
     @Autowired
     private JedisProperties jedisProperties;

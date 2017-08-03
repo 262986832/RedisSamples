@@ -1,7 +1,6 @@
 package com.vergilyn.demo.redis.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +18,7 @@ import redis.clients.jedis.JedisPoolConfig;
 @Configuration
 @EnableConfigurationProperties(JedisProperties.class)
 public class JedisConfig {
+    public final static String DEFAULE_KEY = "vkey";
     @Autowired
     private JedisProperties jedisProperties;
 
