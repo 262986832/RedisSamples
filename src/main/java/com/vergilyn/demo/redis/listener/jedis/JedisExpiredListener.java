@@ -22,7 +22,7 @@ public class JedisExpiredListener extends JedisPubSub {
     public final static String LISTENER_PATTERN = "__keyevent@*__:expired";
 
     /**
-     * 虽然能注入,但其实jedis无法使用,exception message:
+     * 虽然能注入,但貌似在listener-class中jedis无法使用(无法建立连接到redis),exception message:
      * "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context"
      */
     @Autowired
