@@ -1,10 +1,13 @@
 package com.vergilyn.demo.redis.listener.jedis;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPubSub;
 
 /**
  * key过期事件推送到topic中只有key，无value，因为一旦过期，value就不存在了。
+ *
  * @author VergiLyn
  * @blog http://www.cnblogs.com/VergiLyn/
  * @date 2017/8/3
@@ -17,6 +20,14 @@ public class JedisExpiredListener extends JedisPubSub {
      *
      */
     public final static String LISTENER_PATTERN = "__keyevent@*__:expired";
+
+    /**
+     * 虽然能注入,但其实jedis无法使用,exception message:
+     * "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / QUIT allowed in this context"
+     */
+    @Autowired
+    private Jedis jedis;
+
     /**
      * 初始化按表达式的方式订阅时候的处理
      * @param pattern
